@@ -1,5 +1,5 @@
 # coding: utf-8
-
+import datetime
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -35,11 +35,50 @@ def load_data(train_file, test_file):
     return train, validate, test
 
 
+def get_store_and_fwd_flag_int(x):
+    if x == 'N':
+        return 0
+    return 1
+
+
+def get_pickup_datetime_year(x):
+    pickup_datetime = datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
+    return pickup_datetime.year
+
+
+def get_pickup_datetime_month(x):
+    pickup_datetime = datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
+    return pickup_datetime.month
+
+
+def get_pickup_datetime_day(x):
+    pickup_datetime = datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
+    return pickup_datetime.day
+
+
+def get_pickup_datetime_weekday(x):
+    pickup_datetime = datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
+    return pickup_datetime.weekday()  # 0-6
+
+
+def get_pickup_datetime_hour(x):
+    pickup_datetime = datetime.datetime.strptime(x, '%Y-%m-%d %H:%M:%S')
+    return pickup_datetime.hour
+
+
 def prepare_data_one(data):
     data_Y = data['trip_duration']
-    data_X = data.drop(['id', 'trip_duration'], axis=1)
+    data_X = data.drop(['trip_duration'], axis=1)
     if 'dropoff_datetime' in data_X.keys():
-        data_X = data.drop(['dropoff_datetime'], axis=1)
+        data_X = data_X.drop(['dropoff_datetime'], axis=1)
+    data_X['store_and_fwd_flag_int'] = data_X['store_and_fwd_flag'].map(lambda x: get_store_and_fwd_flag_int(x))
+    data_X['pickup_datetime_year'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_year(x))
+    data_X['pickup_datetime_month'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_month(x))
+    data_X['pickup_datetime_day'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_day(x))
+    data_X['pickup_datetime_weekday'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_weekday(x))
+    data_X['pickup_datetime_hour'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_hour(x))
+    data_X = data_X.drop(['store_and_fwd_flag'], axis=1)
+    data_X = data_X.drop(['pickup_datetime'], axis=1)
     return data_X, data_Y
 
 
