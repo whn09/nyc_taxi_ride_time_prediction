@@ -28,7 +28,7 @@ def xgb_train_validate(train_X, train_Y, test_X, test_Y):
 
     watchlist = [(xg_train, 'train'), (xg_test, 'test')]
     # num_round = 5
-    num_round = 100
+    num_round = 200
 
     # param['objective'] = 'reg:linear'
     param['objective'] = 'reg:gamma'
@@ -68,7 +68,8 @@ def xgb_predict(test_X):
 
 
 def train_predict(train_X, train_Y, validate_X, validate_Y, test_X, test_Y):
-    xgb_train_validate(train_X, train_Y, validate_X, validate_Y)
+    # xgb_train_validate(train_X, train_Y, validate_X, validate_Y)
+    xgb_train_validate(pd.concat((train_X, validate_X), axis=0), pd.concat((train_Y, validate_Y), axis=0), validate_X, validate_Y)
     xgb_predict(test_X)
 
 
@@ -80,7 +81,19 @@ if __name__ == '__main__':
         train_X, train_Y, validate_X, validate_Y, test_X, test_Y = pickle.load(open(data_pickle_file, 'r'))
     else:
         train, validate, test = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
-        train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, validate, test)
+        weather = load_weather_data(base_dir + 'weather_data_nyc_centralpark_2016.csv')
+        train_route, test_route = load_route_data(
+            base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_train_part_1.csv',
+            base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_train_part_2.csv',
+            base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_test.csv')
+        train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, validate, test, weather, train_route, test_route)
         pickle.dump((train_X, train_Y, validate_X, validate_Y, test_X, test_Y), open(data_pickle_file, 'w'))
+
+    # print('train precipitation:', train_X['precipitation'].unique())
+    # print('train snow_fall:', train_X['snow_fall'].unique())
+    # print('train snow_depth:', train_X['snow_depth'].unique())
+    # print('train total_distance:', train_X['total_distance'].unique())
+    # print('train total_travel_time:', train_X['total_travel_time'].unique())
+    # print('train number_of_steps:', train_X['number_of_steps'].unique())
 
     train_predict(train_X, train_Y, validate_X, validate_Y, test_X, test_Y)
