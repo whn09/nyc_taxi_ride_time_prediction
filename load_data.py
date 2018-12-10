@@ -109,7 +109,7 @@ def prepare_data_one(data, weather, route):
 
     data_X['store_and_fwd_flag_int'] = data_X['store_and_fwd_flag'].map(lambda x: get_store_and_fwd_flag_int(x))
     data_X['pickup_date'] = data_X['pickup_datetime'].map(lambda x: get_pickup_date(x))
-    data_X['pickup_datetime_year'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_year(x))
+    # data_X['pickup_datetime_year'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_year(x))
     data_X['pickup_datetime_month'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_month(x))
     data_X['pickup_datetime_day'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_day(x))
     data_X['pickup_datetime_weekday'] = data_X['pickup_datetime'].map(lambda x: get_pickup_datetime_weekday(x))
