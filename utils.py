@@ -386,12 +386,12 @@ def opt_tpr_fpr(y_test, y_score, step=0.1, base=0, num=10):
     return max_high_tolerance_thres_0, max_medium_tolerance_thres_0, max_low_tolerance_thres_0, max_high_tolerance_thres_1, max_medium_tolerance_thres_1, max_low_tolerance_thres_1
 
 
-def haversine(lon1, lat1, lon2, lat2):
-    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+def haversine_array(lon1, lat1, lon2, lat2):
+    lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
     dlon = lon2 - lon1
     dlat = lat2 - lat1
-    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-    c = 2 * asin(sqrt(a))
+    a = np.sin(dlat * 0.5) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arcsin(np.sqrt(a))
     r = 6371
     return c * r * 1000
 

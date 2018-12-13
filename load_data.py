@@ -3,6 +3,7 @@ import datetime
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
+from sklearn.cluster import MiniBatchKMeans
 from utils import *
 
 pd.set_option('display.max_columns', None)
@@ -35,10 +36,28 @@ def load_data(train_file, test_file):
 
     m = np.mean(train['trip_duration'])
     s = np.std(train['trip_duration'])
+    train = train[train['trip_duration'] <= m + 2 * s]
+    train = train[train['trip_duration'] >= m - 2 * s]
+    print('filter trip_duration train.shape:', train.shape)
 
-    train, validate = train_test_split(train, test_size=0.1)
+    city_long_border = (-74.03, -73.75)
+    city_lat_border = (40.63, 40.85)
+    train = train[train['pickup_longitude'] <= city_long_border[1]]
+    train = train[train['pickup_longitude'] >= city_long_border[0]]
+    train = train[train['pickup_latitude'] <= city_lat_border[1]]
+    train = train[train['pickup_latitude'] >= city_lat_border[0]]
+    train = train[train['dropoff_longitude'] <= city_long_border[1]]
+    train = train[train['dropoff_longitude'] >= city_long_border[0]]
+    train = train[train['dropoff_latitude'] <= city_lat_border[1]]
+    train = train[train['dropoff_latitude'] >= city_lat_border[0]]
+    print('filter pickup and dropoff train.shape:', train.shape)
 
-    return train, validate, test, m, s
+    coords = np.vstack((train[['pickup_latitude', 'pickup_longitude']].values,
+                        train[['dropoff_latitude', 'dropoff_longitude']].values))
+    sample_ind = np.random.permutation(len(coords))[:500000]
+    kmeans = MiniBatchKMeans(n_clusters=100, batch_size=10000).fit(coords[sample_ind])
+
+    return train, test, kmeans
 
 
 def get_weather_date(x):
@@ -118,7 +137,7 @@ def get_euclid_distance(x):
     pickup_latitude = x['pickup_latitude']
     dropoff_longitude = x['dropoff_longitude']
     dropoff_latitude = x['dropoff_latitude']
-    euclid_distance = haversine(pickup_longitude, pickup_latitude, dropoff_longitude, dropoff_latitude)
+    euclid_distance = haversine_array(pickup_longitude, pickup_latitude, dropoff_longitude, dropoff_latitude)
     return euclid_distance
 
 
@@ -127,7 +146,7 @@ def get_manhattan_distance(x):
     pickup_latitude = x['pickup_latitude']
     dropoff_longitude = x['dropoff_longitude']
     dropoff_latitude = x['dropoff_latitude']
-    manhattan_distance = haversine(pickup_longitude, pickup_latitude, pickup_longitude, dropoff_latitude) + haversine(pickup_longitude, dropoff_latitude, dropoff_longitude, dropoff_latitude)
+    manhattan_distance = haversine_array(pickup_longitude, pickup_latitude, pickup_longitude, dropoff_latitude) + haversine_array(pickup_longitude, dropoff_latitude, dropoff_longitude, dropoff_latitude)
     return manhattan_distance
 
 
@@ -150,26 +169,9 @@ def get_direction_8(x):
     return direction_8
 
 
-def prepare_data_one(data, weather, route, m, s, stage):
+def prepare_data_one(data, weather, route, kmeans, stage):
     start = time.time()
     print('data.shape:', data.shape)
-
-    if stage != 'test':
-        data = data[data['trip_duration'] <= m + 2 * s]
-        data = data[data['trip_duration'] >= m - 2 * s]
-        print('filter trip_duration data.shape:', data.shape, time.time()-start)
-
-        city_long_border = (-74.03, -73.75)
-        city_lat_border = (40.63, 40.85)
-        data = data[data['pickup_longitude'] <= city_long_border[1]]
-        data = data[data['pickup_longitude'] >= city_long_border[0]]
-        data = data[data['pickup_latitude'] <= city_lat_border[1]]
-        data = data[data['pickup_latitude'] >= city_lat_border[0]]
-        data = data[data['dropoff_longitude'] <= city_long_border[1]]
-        data = data[data['dropoff_longitude'] >= city_long_border[0]]
-        data = data[data['dropoff_latitude'] <= city_lat_border[1]]
-        data = data[data['dropoff_latitude'] >= city_lat_border[0]]
-        print('filter pickup and dropoff data.shape:', data.shape, time.time()-start)
 
     data_Y = data['trip_duration']
     data_X = data
@@ -199,11 +201,14 @@ def prepare_data_one(data, weather, route, m, s, stage):
     data_X['is_evening_peak'] = data_X['pickup_datetime_hour'].map(lambda x: 17 <= x <= 19 and 1 or 0)
     print('is_evening_peak done', time.time()-start)
 
-    data_X['euclid_distance'] = data_X.apply(lambda x: get_euclid_distance(x), axis=1)
+    # data_X['euclid_distance'] = data_X.apply(lambda x: get_euclid_distance(x), axis=1)
+    data_X['euclid_distance'] = haversine_array(data_X['pickup_longitude'].values, data_X['pickup_latitude'].values, data_X['dropoff_longitude'].values, data_X['dropoff_latitude'].values)
     print('euclid_distance done', time.time()-start)
-    data_X['manhattan_distance'] = data_X.apply(lambda x: get_manhattan_distance(x), axis=1)
+    # data_X['manhattan_distance'] = data_X.apply(lambda x: get_manhattan_distance(x), axis=1)
+    data_X['manhattan_distance'] = haversine_array(data_X['pickup_longitude'].values, data_X['pickup_latitude'].values, data_X['pickup_longitude'].values, data_X['dropoff_latitude'].values) + haversine_array(data_X['dropoff_longitude'].values, data_X['dropoff_latitude'].values, data_X['pickup_longitude'].values, data_X['dropoff_latitude'].values)
     print('manhattan_distance done', time.time()-start)
-    data_X['direction'] = data_X.apply(lambda x: get_direction(x), axis=1)
+    # data_X['direction'] = data_X.apply(lambda x: get_direction(x), axis=1)
+    data_X['direction'] = bearing_array(data_X['pickup_longitude'].values, data_X['pickup_latitude'].values, data_X['dropoff_longitude'].values, data_X['dropoff_latitude'].values)
     print('direction done', time.time()-start)
     data_X['direction_8'] = data_X['direction'].map(lambda x: get_direction_8(x))
     print('direction_8 done', time.time()-start)
@@ -217,6 +222,47 @@ def prepare_data_one(data, weather, route, m, s, stage):
     data_X['dropoff_latitude_grid'] = data_X['dropoff_latitude'].map(lambda x: round(x, 3))
     print('dropoff_latitude_grid done', time.time()-start)
 
+    data_X['pickup_cluster'] = kmeans.predict(data_X[['pickup_latitude', 'pickup_longitude']])
+    print('pickup_cluster done', time.time() - start)
+    data_X['dropoff_cluster'] = kmeans.predict(data_X[['dropoff_latitude', 'dropoff_longitude']])
+    print('dropoff_cluster done', time.time() - start)
+
+    # vendor_id_dummy = pd.get_dummies(data_X['vendor_id'], prefix='vi', prefix_sep='_')
+    # print('vendor_id_dummy done', vendor_id_dummy.shape, time.time()-start)
+    # passenger_count_dummy = pd.get_dummies(data_X['passenger_count'], prefix='pc', prefix_sep='_')
+    # if stage == 'test':
+    #     passenger_count_dummy = passenger_count_dummy.drop('pc_9', axis=1)  # filter test abnormal value
+    # print('passenger_count_dummy done', passenger_count_dummy.shape, time.time()-start)
+    # store_and_fwd_flag_int_dummy = pd.get_dummies(data_X['store_and_fwd_flag_int'], prefix='sf', prefix_sep='_')
+    # print('store_and_fwd_flag_int_dummy done', store_and_fwd_flag_int_dummy.shape, time.time()-start)
+    # pickup_cluster_dummy = pd.get_dummies(data_X['pickup_cluster'], prefix='pic', prefix_sep='_')
+    # print('pickup_cluster_dummy done', pickup_cluster_dummy.shape, time.time()-start)
+    # dropoff_cluster_dummy = pd.get_dummies(data_X['dropoff_cluster'], prefix='drc', prefix_sep='_')
+    # print('dropoff_cluster_dummy done', dropoff_cluster_dummy.shape, time.time()-start)
+    # pickup_datetime_month_dummy = pd.get_dummies(data_X['pickup_datetime_month'], prefix='pm', prefix_sep='_')
+    # print('pickup_datetime_month_dummy done', pickup_datetime_month_dummy.shape, time.time()-start)
+    # pickup_datetime_day_dummy = pd.get_dummies(data_X['pickup_datetime_day'], prefix='pd', prefix_sep='_')
+    # print('pickup_datetime_day_dummy done', pickup_datetime_day_dummy.shape, time.time()-start)
+    # pickup_datetime_hour_dummy = pd.get_dummies(data_X['pickup_datetime_hour'], prefix='ph', prefix_sep='_')
+    # print('pickup_datetime_hour_dummy done', pickup_datetime_hour_dummy.shape, time.time()-start)
+    # pickup_datetime_weekday_dummy = pd.get_dummies(data_X['pickup_datetime_weekday'], prefix='pwd', prefix_sep='_')
+    # print('pickup_datetime_weekday_dummy done', pickup_datetime_weekday_dummy.shape, time.time()-start)
+    # direction_8_dummy = pd.get_dummies(data_X['direction_8'], prefix='d8', prefix_sep='_')
+    # print('direction_8_dummy done', direction_8_dummy.shape, time.time() - start)
+    #
+    # data_X = pd.concat([data_X,
+    #                     vendor_id_dummy,
+    #                     passenger_count_dummy,
+    #                     store_and_fwd_flag_int_dummy,
+    #                     pickup_cluster_dummy,
+    #                     dropoff_cluster_dummy,
+    #                     pickup_datetime_month_dummy,
+    #                     pickup_datetime_day_dummy,
+    #                     pickup_datetime_hour_dummy,
+    #                     pickup_datetime_weekday_dummy,
+    #                     direction_8_dummy], axis=1)
+    # print('concat dummy done', time.time()-start)
+
     data_X = pd.merge(data_X, weather, how='left', on=['pickup_date'])
     print('weather merge done', time.time()-start)
     data_X = pd.merge(data_X, route, how='left', on=['id'])
@@ -225,37 +271,38 @@ def prepare_data_one(data, weather, route, m, s, stage):
     data_X.drop(['store_and_fwd_flag', 'pickup_datetime', 'pickup_date', 'trip_duration'], axis=1, inplace=True)
     if stage != 'test':  # if 'dropoff_datetime' in data_X.keys():
         data_X = data_X.drop(['dropoff_datetime'], axis=1)
-    print('drop done', time.time()-start)
+    print('drop done', time.time() - start)
+
+    if stage != 'test':
+        train_X, validate_X, train_Y, validate_Y = train_test_split(data_X, data_Y, test_size=0.1, random_state=2018)
+        return train_X, train_Y, validate_X, validate_Y
 
     return data_X, data_Y
 
 
 def extend_feature(data_X):
     data_X.drop(['pickup_longitude', 'pickup_latitude', 'dropoff_longitude', 'dropoff_latitude'], axis=1, inplace=True)
+    data_X.drop(['pickup_longitude_grid', 'pickup_latitude_grid', 'dropoff_longitude_grid', 'dropoff_latitude_grid'], axis=1, inplace=True)
+    data_X.drop(['vendor_id', 'passenger_count', 'store_and_fwd_flag_int', 'pickup_cluster', 'dropoff_cluster', 'pickup_datetime_month', 'pickup_datetime_day', 'pickup_datetime_hour', 'pickup_datetime_weekday', 'direction_8'], axis=1, inplace=True)
     return data_X
 
 
-def prepare_data(train, validate, test, weather, train_route, test_route, m, s):
+def prepare_data(train, test, weather, train_route, test_route, kmeans):
     print('prepare_data train')
-    train_X, train_Y = prepare_data_one(train, weather, train_route, m, s, stage='train')
-    print('prepare_data validate')
-    validate_X, validate_Y = prepare_data_one(validate, weather, train_route, m, s, stage='validate')
+    train_X, train_Y, validate_X, validate_Y = prepare_data_one(train, weather, train_route, kmeans, stage='train')
     print('prepare_data test')
-    test_X, test_Y = prepare_data_one(test, weather, test_route, m, s, stage='test')
+    test_X, test_Y = prepare_data_one(test, weather, test_route, kmeans, stage='test')
     return train_X, train_Y, validate_X, validate_Y, test_X, test_Y
 
 
 def main():
     base_dir = '../dataset/nyc_taxi/'
-    train, validate, test, m, s = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
+    train, test, kmeans = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
     print('train:', train.shape)
     print(train.head())
-    print('validate:', validate.shape)
-    print(validate.head())
     print('test:', test.shape)
     print(test.head())
-    print('m:', m)
-    print('s:', s)
+    print('kmeans:', kmeans)
 
     weather = load_weather_data(base_dir + 'weather_data_nyc_centralpark_2016.csv')
     print('weather:', weather.shape)
@@ -269,8 +316,8 @@ def main():
     print('test_route:', test_route.shape)
     print(test_route.head())
 
-    train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, validate, test, weather, train_route,
-                                                                            test_route, m, s)
+    train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, test, weather, train_route,
+                                                                            test_route, kmeans)
     print('train_X:', train_X.shape)
     print(train_X.head())
     print('train_Y:', train_Y.shape)

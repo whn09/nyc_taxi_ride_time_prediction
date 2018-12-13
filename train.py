@@ -20,7 +20,7 @@ def xgb_train_validate(train_X, train_Y, test_X, test_Y):
     # scale weight of positive examples
     param['eta'] = 0.1  # default
     # param['eta'] = 0.02
-    param['max_depth'] = 6  # default
+    param['max_depth'] = 20  # default: 6
     param['silent'] = 1  # default
     param['nthread'] = 4  # default
     param['gamma'] = 1
@@ -33,7 +33,7 @@ def xgb_train_validate(train_X, train_Y, test_X, test_Y):
 
     watchlist = [(xg_train, 'train'), (xg_test, 'test')]
     # num_round = 5
-    num_round = 200
+    num_round = 400
 
     # param['objective'] = 'reg:linear'
     param['objective'] = 'reg:gamma'
@@ -88,13 +88,13 @@ if __name__ == '__main__':
     if os.path.exists(data_pickle_file):
         train_X, train_Y, validate_X, validate_Y, test_X, test_Y = pickle.load(open(data_pickle_file, 'r'))
     else:
-        train, validate, test, m, s = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
+        train, test, kmeans = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
         weather = load_weather_data(base_dir + 'weather_data_nyc_centralpark_2016.csv')
         train_route, test_route = load_route_data(
             base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_train_part_1.csv',
             base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_train_part_2.csv',
             base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_test.csv')
-        train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, validate, test, weather, train_route, test_route, m, s)
+        train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, test, weather, train_route, test_route, kmeans)
         pickle.dump((train_X, train_Y, validate_X, validate_Y, test_X, test_Y), open(data_pickle_file, 'w'), protocol=2)
 
     # train_X = extend_feature(train_X)
@@ -102,8 +102,8 @@ if __name__ == '__main__':
     # test_X = extend_feature(test_X)
     # pickle.dump((train_X, train_Y, validate_X, validate_Y, test_X, test_Y), open(data_pickle_file, 'w'), protocol=2)
 
-    print('train_X:', train_X.shape)
     print(train_X.head())
+    print('train_X:', train_X.shape)
     print('validate_X:', validate_X.shape)
     print('test_X:', test_X.shape)
     train_predict(train_X, train_Y, validate_X, validate_Y, test_X, test_Y)
