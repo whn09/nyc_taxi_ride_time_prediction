@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.metrics import roc_curve, auc
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import classification_report
+from math import radians, cos, sin, asin, sqrt
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -383,3 +384,21 @@ def opt_tpr_fpr(y_test, y_score, step=0.1, base=0, num=10):
                 max_low_tolerance_tpr_1 = TPR_1
                 max_low_tolerance_thres_1 = thres
     return max_high_tolerance_thres_0, max_medium_tolerance_thres_0, max_low_tolerance_thres_0, max_high_tolerance_thres_1, max_medium_tolerance_thres_1, max_low_tolerance_thres_1
+
+
+def haversine(lon1, lat1, lon2, lat2):
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+    c = 2 * asin(sqrt(a))
+    r = 6371
+    return c * r * 1000
+
+
+def bearing_array(lon1, lat1, lon2, lat2):
+    lng_delta_rad = np.radians(lon2 - lon1)
+    lat1, lon1, lat2, lon2 = map(np.radians, (lat1, lon1, lat2, lon2))
+    y = np.sin(lng_delta_rad) * np.cos(lat2)
+    x = np.cos(lat1) * np.sin(lat2) - np.sin(lat1) * np.cos(lat2) * np.cos(lng_delta_rad)
+    return np.degrees(np.arctan2(y, x))

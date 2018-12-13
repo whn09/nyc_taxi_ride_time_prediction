@@ -23,8 +23,13 @@ def xgb_train_validate(train_X, train_Y, test_X, test_Y):
     param['max_depth'] = 6  # default
     param['silent'] = 1  # default
     param['nthread'] = 4  # default
-    # param['gamma'] = 1
-    # param['subsample'] = 0.6
+    param['gamma'] = 1
+    param['subsample'] = 0.9
+    param['min_child_weight'] = 1
+    param['colsample_bytree'] = 0.9
+    param['lambda'] = 1
+    param['booster'] = 'gbtree'
+    param['eval_metric'] = 'rmse'
 
     watchlist = [(xg_train, 'train'), (xg_test, 'test')]
     # num_round = 5
@@ -45,12 +50,12 @@ def xgb_train_validate(train_X, train_Y, test_X, test_Y):
     pickle.dump(bst, open("xgboost_bst.model", "wb"))
 
     pred_prob = bst.predict(xg_test)
-    print('pred_prob:', pred_prob.shape, pred_prob)
+    # print('pred_prob:', pred_prob.shape, pred_prob)
     test_rmsle = rmsle(pred_prob, test_Y)
     print('test_rmsle:', test_rmsle)
 
     pred_prob_train = bst.predict(xg_train)
-    print('pred_prob_train:', pred_prob_train.shape, pred_prob_train)
+    # print('pred_prob_train:', pred_prob_train.shape, pred_prob_train)
     train_rmsle = rmsle(pred_prob_train, train_Y)
     print('train_rmsle:', train_rmsle)
 
@@ -68,9 +73,12 @@ def xgb_predict(test_X):
 
 
 def train_predict(train_X, train_Y, validate_X, validate_Y, test_X, test_Y):
-    # xgb_train_validate(train_X, train_Y, validate_X, validate_Y)
-    xgb_train_validate(pd.concat((train_X, validate_X), axis=0), pd.concat((train_Y, validate_Y), axis=0), validate_X, validate_Y)
-    xgb_predict(test_X)
+    # offline
+    xgb_train_validate(train_X, train_Y, validate_X, validate_Y)
+
+    # online submit
+    # xgb_train_validate(pd.concat((train_X, validate_X), axis=0), pd.concat((train_Y, validate_Y), axis=0), validate_X, validate_Y)
+    # xgb_predict(test_X)
 
 
 if __name__ == '__main__':
@@ -80,20 +88,22 @@ if __name__ == '__main__':
     if os.path.exists(data_pickle_file):
         train_X, train_Y, validate_X, validate_Y, test_X, test_Y = pickle.load(open(data_pickle_file, 'r'))
     else:
-        train, validate, test = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
+        train, validate, test, m, s = load_data(base_dir + 'train.csv', base_dir + 'test.csv')
         weather = load_weather_data(base_dir + 'weather_data_nyc_centralpark_2016.csv')
         train_route, test_route = load_route_data(
             base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_train_part_1.csv',
             base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_train_part_2.csv',
             base_dir + 'new-york-city-taxi-with-osrm/fastest_routes_test.csv')
-        train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, validate, test, weather, train_route, test_route)
-        pickle.dump((train_X, train_Y, validate_X, validate_Y, test_X, test_Y), open(data_pickle_file, 'w'))
+        train_X, train_Y, validate_X, validate_Y, test_X, test_Y = prepare_data(train, validate, test, weather, train_route, test_route, m, s)
+        pickle.dump((train_X, train_Y, validate_X, validate_Y, test_X, test_Y), open(data_pickle_file, 'w'), protocol=2)
 
-    # print('train precipitation:', train_X['precipitation'].unique())
-    # print('train snow_fall:', train_X['snow_fall'].unique())
-    # print('train snow_depth:', train_X['snow_depth'].unique())
-    # print('train total_distance:', train_X['total_distance'].unique())
-    # print('train total_travel_time:', train_X['total_travel_time'].unique())
-    # print('train number_of_steps:', train_X['number_of_steps'].unique())
+    # train_X = extend_feature(train_X)
+    # validate_X = extend_feature(validate_X)
+    # test_X = extend_feature(test_X)
+    # pickle.dump((train_X, train_Y, validate_X, validate_Y, test_X, test_Y), open(data_pickle_file, 'w'), protocol=2)
 
+    print('train_X:', train_X.shape)
+    print(train_X.head())
+    print('validate_X:', validate_X.shape)
+    print('test_X:', test_X.shape)
     train_predict(train_X, train_Y, validate_X, validate_Y, test_X, test_Y)
